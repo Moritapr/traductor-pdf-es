@@ -1,5 +1,4 @@
 streamlit
 PyMuPDF
-googletrans==3.1.0a0
+deep-translator
 reportlab
-httpx==0.23.0
