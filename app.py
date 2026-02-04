@@ -25,7 +25,7 @@ st.markdown("---")
 class TextBlock:
     """Clase para representar bloques de texto con sus propiedades"""
     def __init__(self, text, font_size, is_bold, x, y, page_num):
-        self.text = text.strip()
+        self.text = (text or "").strip()  # Manejo de None
         self.font_size = font_size
         self.is_bold = is_bold
         self.x = x
@@ -36,6 +36,9 @@ class TextBlock:
     def clasificar_tipo(self):
         """Clasifica el tipo de bloque según sus características"""
         text = self.text
+        
+        if not text:
+            return 'parrafo'
         
         # Detectar títulos y encabezados
         if self.font_size > 12 or self.is_bold:
@@ -72,14 +75,15 @@ def extraer_bloques_estructurados(pdf_documento):
             
             for linea in bloque["lines"]:
                 for span in linea["spans"]:
-                    texto = span["text"].strip()
+                    texto = span.get("text", "").strip()
                     if not texto:
                         continue
                     
-                    font_size = span["size"]
-                    is_bold = "bold" in span["font"].lower()
-                    x = span["bbox"][0]
-                    y = span["bbox"][1]
+                    font_size = span.get("size", 10)
+                    is_bold = "bold" in span.get("font", "").lower()
+                    bbox = span.get("bbox", [0, 0, 0, 0])
+                    x = bbox[0]
+                    y = bbox[1]
                     
                     text_block = TextBlock(texto, font_size, is_bold, x, y, num_pagina)
                     bloques_pagina.append(text_block)
@@ -101,14 +105,19 @@ def agrupar_bloques_en_parrafos(bloques):
     ultimo_tipo = None
     
     for bloque in bloques:
+        if not bloque.text:
+            continue
+            
         # Si es un título o subtítulo, crear párrafo nuevo
         if bloque.tipo in ['titulo', 'subtitulo']:
             if buffer:
-                parrafos.append({
-                    'texto': ' '.join([b.text for b in buffer]),
-                    'tipo': ultimo_tipo or 'parrafo',
-                    'font_size': buffer[0].font_size
-                })
+                textos = [b.text for b in buffer if b.text]
+                if textos:
+                    parrafos.append({
+                        'texto': ' '.join(textos),
+                        'tipo': ultimo_tipo or 'parrafo',
+                        'font_size': buffer[0].font_size
+                    })
                 buffer = []
             
             parrafos.append({
@@ -123,11 +132,13 @@ def agrupar_bloques_en_parrafos(bloques):
         # Detectar salto de párrafo (diferencia significativa en Y)
         if ultimo_y is not None and abs(bloque.y - ultimo_y) > 15:
             if buffer:
-                parrafos.append({
-                    'texto': ' '.join([b.text for b in buffer]),
-                    'tipo': ultimo_tipo or 'parrafo',
-                    'font_size': buffer[0].font_size if buffer else 10
-                })
+                textos = [b.text for b in buffer if b.text]
+                if textos:
+                    parrafos.append({
+                        'texto': ' '.join(textos),
+                        'tipo': ultimo_tipo or 'parrafo',
+                        'font_size': buffer[0].font_size if buffer else 10
+                    })
                 buffer = []
         
         buffer.append(bloque)
@@ -136,11 +147,13 @@ def agrupar_bloques_en_parrafos(bloques):
     
     # Agregar último buffer
     if buffer:
-        parrafos.append({
-            'texto': ' '.join([b.text for b in buffer]),
-            'tipo': ultimo_tipo or 'parrafo',
-            'font_size': buffer[0].font_size if buffer else 10
-        })
+        textos = [b.text for b in buffer if b.text]
+        if textos:
+            parrafos.append({
+                'texto': ' '.join(textos),
+                'tipo': ultimo_tipo or 'parrafo',
+                'font_size': buffer[0].font_size if buffer else 10
+            })
     
     return parrafos
 
@@ -148,16 +161,17 @@ def traducir_texto_inteligente(texto, max_caracteres=4500):
     """
     Traduce texto de manera inteligente respetando estructura
     """
-    if not texto or len(texto.strip()) == 0:
+    if not texto or len(str(texto).strip()) == 0:
         return ""
     
+    texto = str(texto).strip()  # Asegurar que sea string
     translator = GoogleTranslator(source='en', target='es')
     
     # Si el texto es corto, traducir directamente
     if len(texto) <= max_caracteres:
         try:
             traduccion = translator.translate(texto)
-            return traduccion
+            return traduccion or texto
         except Exception as e:
             return texto
     
@@ -173,7 +187,7 @@ def traducir_texto_inteligente(texto, max_caracteres=4500):
             if buffer:
                 try:
                     traduccion = translator.translate(buffer.strip())
-                    texto_traducido.append(traduccion)
+                    texto_traducido.append(traduccion or buffer)
                     time.sleep(0.2)
                 except Exception as e:
                     texto_traducido.append(buffer)
@@ -182,7 +196,7 @@ def traducir_texto_inteligente(texto, max_caracteres=4500):
     if buffer:
         try:
             traduccion = translator.translate(buffer.strip())
-            texto_traducido.append(traduccion)
+            texto_traducido.append(traduccion or buffer)
         except Exception as e:
             texto_traducido.append(buffer)
     
@@ -263,11 +277,14 @@ def crear_pdf_profesional(parrafos_traducidos, output_path):
     
     for i, pagina_parrafos in enumerate(parrafos_traducidos):
         for parrafo_info in pagina_parrafos:
-            texto = parrafo_info['texto']
-            tipo = parrafo_info['tipo']
+            texto = parrafo_info.get('texto', '')
+            tipo = parrafo_info.get('tipo', 'parrafo')
             
-            if not texto.strip():
+            # Verificar que el texto no sea None o vacío
+            if not texto or not str(texto).strip():
                 continue
+            
+            texto = str(texto).strip()
             
             # Limpiar texto para ReportLab
             texto_limpio = texto.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -366,20 +383,23 @@ if archivo_subido is not None:
                     
                     parrafos_traducidos = []
                     for parrafo_info in parrafos_pagina:
-                        texto_original = parrafo_info['texto']
+                        texto_original = parrafo_info.get('texto', '')
+                        
+                        if not texto_original:
+                            continue
                         
                         # Traducir
                         texto_traducido = traducir_texto_inteligente(texto_original)
                         
                         parrafos_traducidos.append({
                             'texto': texto_traducido,
-                            'tipo': parrafo_info['tipo'],
-                            'font_size': parrafo_info['font_size']
+                            'tipo': parrafo_info.get('tipo', 'parrafo'),
+                            'font_size': parrafo_info.get('font_size', 10)
                         })
                         
                         parrafos_procesados += 1
                         # Actualizar progreso (25% a 85%)
-                        progreso_actual = 25 + int((parrafos_procesados / total_parrafos) * 60)
+                        progreso_actual = 25 + int((parrafos_procesados / max(total_parrafos, 1)) * 60)
                         progreso.progress(min(progreso_actual, 85))
                     
                     paginas_traducidas.append(parrafos_traducidos)
@@ -464,4 +484,5 @@ st.markdown("""
     <p>🔧 Traductor Profesional de PDF v2.0 | Hecho con ❤️ usando Streamlit</p>
     <p>⚡ Preserva estructura técnica y formato original</p>
 </div>
+""", unsafe_allow_html=True)
 """, unsafe_allow_html=True)
