@@ -1,6 +1,6 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import io
 import time
 from reportlab.lib.pagesizes import letter, A4
@@ -8,7 +8,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_JUSTIFY
-import re
 
 # Configuración de la página
 st.set_page_config(
@@ -21,13 +20,6 @@ st.title("📄 Traductor de PDF: Inglés → Español")
 st.markdown("**Traduce documentos PDF completos preservando el formato original**")
 st.markdown("---")
 
-# Inicializar traductor
-@st.cache_resource
-def init_translator():
-    return Translator()
-
-translator = init_translator()
-
 def traducir_texto_por_partes(texto, max_caracteres=4500):
     """
     Traduce texto largo dividiéndolo en partes para evitar límites de la API
@@ -35,11 +27,13 @@ def traducir_texto_por_partes(texto, max_caracteres=4500):
     if not texto or len(texto.strip()) == 0:
         return ""
     
+    translator = GoogleTranslator(source='en', target='es')
+    
     # Si el texto es corto, traducirlo directamente
     if len(texto) <= max_caracteres:
         try:
-            traduccion = translator.translate(texto, src='en', dest='es')
-            return traduccion.text
+            traduccion = translator.translate(texto)
+            return traduccion
         except Exception as e:
             st.warning(f"Error en traducción: {e}")
             return texto
@@ -56,9 +50,9 @@ def traducir_texto_por_partes(texto, max_caracteres=4500):
             # Traducir el buffer acumulado
             if buffer:
                 try:
-                    traduccion = translator.translate(buffer, src='en', dest='es')
-                    texto_traducido.append(traduccion.text)
-                    time.sleep(0.5)  # Pequeña pausa para evitar rate limiting
+                    traduccion = translator.translate(buffer)
+                    texto_traducido.append(traduccion)
+                    time.sleep(0.3)  # Pequeña pausa para evitar rate limiting
                 except Exception as e:
                     st.warning(f"Error en traducción de parte: {e}")
                     texto_traducido.append(buffer)
@@ -68,8 +62,8 @@ def traducir_texto_por_partes(texto, max_caracteres=4500):
     # Traducir el último buffer
     if buffer:
         try:
-            traduccion = translator.translate(buffer, src='en', dest='es')
-            texto_traducido.append(traduccion.text)
+            traduccion = translator.translate(buffer)
+            texto_traducido.append(traduccion)
         except Exception as e:
             texto_traducido.append(buffer)
     
