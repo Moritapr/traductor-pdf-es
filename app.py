@@ -444,7 +444,6 @@ if archivo_subido is not None:
             st.exception(e)
             st.info("💡 Tip: Asegúrate de que el PDF no esté protegido o corrupto")
 
-# Información adicional
 st.markdown("---")
 
 col_info1, col_info2 = st.columns(2)
@@ -479,10 +478,5 @@ with col_info2:
     """)
 
 st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; font-size: 12px;'>
-    <p>🔧 Traductor Profesional de PDF v2.0 | Hecho con ❤️ usando Streamlit</p>
-    <p>⚡ Preserva estructura técnica y formato original</p>
-</div>
-""", unsafe_allow_html=True)
-""", unsafe_allow_html=True)
+st.caption("🔧 Traductor Profesional de PDF v2.0 | Hecho con ❤️ usando Streamlit")
+st.caption("⚡ Preserva estructura técnica y formato original")
